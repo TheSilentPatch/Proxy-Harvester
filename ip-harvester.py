@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+# proxy_harvester.py
+"""
+Proxy Harvester - Scrape free proxies from public sources with robust CLI functionality.
+"""
+
+import argparse
+import logging
+import sys
+import re
+from datetime import datetime
+from typing import List, Dict, Optional, Tuple
+
+import requests
+from bs4 import BeautifulSoup
+from colorama import Fore, Style, init
+
+# Initialize colorama
+init(autoreset=True)
+
+__version__ = "1.0.0"
+BANNER = f"""
+{Fore.CYAN}{Style.BRIGHT}
+ ____                           _   _                           _            
+|  _ \ _ __ _____  ___   _     | | | | __ _ _ ____   _____  ___| |_ ___ _ __ 
+| |_) | '__/ _ \ \/ / | | |    | |_| |/ _` | '__\ \ / / _ \/ __| __/ _ \ '__|
+|  __/| | | (_) >  <| |_| |    |  _  | (_| | |   \ V /  __/\__ \ ||  __/ |   
+|_|   |_|  \___/_/\_\\__, |    |_| |_|\__,_|_|    \_/ \___||___/\__\___|_|   
+                     |___/                                                   
+
+Proxy Harvester v{__version__}
+by github.com/ourname
+{Style.RESET_ALL}"""
+
+SOURCE_URL = "https://free-proxy-list.net/"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
+}
+IP_PORT_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}$")
+
+def setup_logger(verbose: bool = False) -> logging.Logger:
+    """Configure and return logger instance"""
+    logger = logging.getLogger("proxy_harvester")
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    return logger
+
+def fetch_html_content(url: str, logger: logging.Logger) -> Optional[str]:
+    """Fetch HTML content from target URL with error handling"""
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network request failed: {e}")
+        print(f"{Fore.RED}✗ Network error: {e}{Style.RESET_ALL}")
+        sys.exit(1)
+
+def parse_proxy_table(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parse HTML and extract proxy data from table"""
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", class_="table table-striped table-bordered")
+    
+    if not table:
+        logger.error("Proxy table not found in HTML")
+        print(f"{Fore.RED}✗ Failed to find proxy table - site structure may have changed{Style.RESET_ALL}")
+        sys.exit(2)
+    
+    proxies = []
+    headers = [th.text.strip().lower() for th in table.find("thead").find_all("th")]
+    
+    for row in table.find("tbody").find_all("tr"):
+        cols = [td.text.strip() for td in row.find_all("td")]
+        if len(cols) != len(headers):
+            continue
+        proxy_data = dict(zip(headers, cols))
+        proxies.append(proxy_data)
+    
+    logger.info(f"Found {len(proxies)} raw proxies in table")
+    return proxies
+
+def validate_proxy(proxy: Dict[str, str]) -> Optional[str]:
+    """Validate proxy entry and return formatted ip:port if valid"""
+    try:
+        ip = proxy["ip address"]
+        port = proxy["port"]
+        https = proxy["https"]
+        
+        if not ip or not port:
+            return None
+        
+        # Validate port range
+        if not port.isdigit() or not (1 <= int(port) <= 65535):
+            return None
+        
+        return f"{ip}:{port}" if ip and port else None
+    except KeyError:
+        return None
+
+def filter_proxies(
+    proxies: List[Dict[str, str]], 
+    proxy_type: str,
+    logger: logging.Logger
+) -> List[str]:
+    """Filter proxies based on type and validation criteria"""
+    valid_proxies = []
+    for proxy in proxies:
+        try:
+            if proxy_type == "https" and proxy["https"] != "yes":
+                continue
+            if proxy_type == "http" and proxy["https"] != "no":
+                continue
+            
+            formatted = validate_proxy(proxy)
+            if formatted:
+                valid_proxies.append(formatted)
+        except KeyError as e:
+            logger.warning(f"Missing key in proxy data: {e}")
+    
+    return valid_proxies
+
+def save_proxies(proxies: List[str], filename: str, logger: logging.Logger) -> None:
+    """Save proxies to output file"""
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("\n".join(proxies))
+        logger.info(f"Saved {len(proxies)} proxies to {filename}")
+    except IOError as e:
+        logger.error(f"File write error: {e}")
+        print(f"{Fore.RED}✗ Failed to write output file: {e}{Style.RESET_ALL}")
+        sys.exit(3)
+
+def print_summary(
+    total_scraped: int,
+    valid_count: int,
+    proxy_type: str,
+    output_file: str,
+    logger: logging.Logger
+) -> None:
+    """Print colored summary to console"""
+    logger.info(f"Scraping completed. Total: {total_scraped}, Valid: {valid_count}")
+    
+    print(f"\n{Fore.GREEN}✓ Harvest complete!{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}• Scraped proxies:{Fore.CYAN} {total_scraped}")
+    print(f"{Fore.YELLOW}• Valid proxies:{Fore.CYAN} {valid_count}")
+    print(f"{Fore.YELLOW}• Proxy type:{Fore.CYAN} {proxy_type.upper()}")
+    print(f"{Fore.YELLOW}• Output file:{Fore.CYAN} {output_file}{Style.RESET_ALL}")
+
+def main() -> None:
+    """Main CLI entry point"""
+    print(BANNER)
+    
+    parser = argparse.ArgumentParser(
+        description="Harvest free proxies from public sources",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "-t", "--type",
+        choices=["http", "https", "all"],
+        default="https",
+        help="Proxy protocol type to harvest"
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default="proxies.txt",
+        help="Output filename"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose logging"
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}"
+    )
+    args = parser.parse_args()
+    
+    logger = setup_logger(args.verbose)
+    logger.info(f"Starting harvest (type={args.type}, output={args.output})")
+    
+    # Scrape and process proxies
+    html = fetch_html_content(SOURCE_URL, logger)
+    raw_proxies = parse_proxy_table(html, logger)
+    valid_proxies = filter_proxies(raw_proxies, args.type, logger)
+    
+    # Save and report results
+    save_proxies(valid_proxies, args.output, logger)
+    print_summary(
+        total_scraped=len(raw_proxies),
+        valid_count=len(valid_proxies),
+        proxy_type=args.type,
+        output_file=args.output,
+        logger=logger
+    )
+
+if __name__ == "__main__":
+    main()
