@@ -30,8 +30,8 @@ jobs:
       - name: Build source and wheel distributions
         run: python -m build
 
-      - name: Run semantic release
-        run: python -m semantic_release publish
+      - name: Run semantic release (generate release notes and tag)
+        run: python -m semantic_release version && python -m semantic_release changelog && python -m semantic_release publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
