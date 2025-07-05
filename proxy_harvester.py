@@ -29,7 +29,7 @@ BANNER = f"""
                      |___/                                                   
 
 Proxy Harvester v{__version__}
-by github.com/ourname
+by github.com/TheSilentPatch
 {Style.RESET_ALL}"""
 
 SOURCE_URL = "https://free-proxy-list.net/"
