@@ -66,8 +66,7 @@ The harvested proxies will be saved to a `.txt` file, with one proxy per line in
 
 ## Author
 
-Your Name (replace with your name or GitHub username)
-MIT License
+[**Silent Coder**](https://github.com/TheSilentPatch/)
 
 ---
 
