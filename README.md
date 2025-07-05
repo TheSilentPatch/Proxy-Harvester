@@ -1,6 +1,17 @@
 # Proxy Harvester
 
-A simple Python CLI script to scrape free proxies from [free-proxy-list.net](https://free-proxy-list.net/) and save them into a text file in `ip:port` format.
+A robust Python CLI tool to scrape free proxies from [free-proxy-list.net](https://free-proxy-list.net/) and save them in `ip:port` format. Supports flexible output paths, colored logging, and protocol filtering.
+
+---
+
+## Features
+
+- Scrapes proxies from a public source with a single command
+- Supports HTTP, HTTPS, or all proxies
+- Output to a file or directory (auto-creates folders)
+- Colored, informative CLI output
+- Verbose logging for debugging
+- Modern Python packaging and release automation
 
 ---
 
@@ -16,7 +27,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-```
+```bash
 # Basic usage (HTTPS proxies)
 python proxy_harvester.py
 
@@ -25,6 +36,9 @@ python proxy_harvester.py --type http -o http_proxies.txt
 
 # All proxies with verbose output
 python proxy_harvester.py -t all -v
+
+# Output to a directory (auto-creates if needed)
+python proxy_harvester.py -o ./output/
 ```
 
 ### Options
@@ -34,7 +48,7 @@ python proxy_harvester.py -t all -v
   * Filter proxies by protocol: `http`, `https`, or `all`
 * `--output` or `-o`
 
-  * Set output file name (default `proxies.txt`)
+  * Set output file or directory (default `proxies.txt`)
 * `--verbose` or `-v`
 
   * Enable verbose debug output
@@ -55,12 +69,20 @@ The harvested proxies will be saved to a `.txt` file, with one proxy per line in
 
 ---
 
+## Release Automation
+
+- Releases are triggered by pushing a tag like `v2.0.0` to GitHub.
+- GitHub Actions will build the package and upload release assets automatically.
+- Release notes are auto-generated.
+
+---
+
 ## Notes
 
-* This script uses `requests` and `beautifulsoup4` with the `lxml` parser.
-* By default, it pulls proxies from `free-proxy-list.net`.
+* Uses `requests`, `beautifulsoup4`, and `colorama` with the `lxml` parser.
+* By default, pulls proxies from `free-proxy-list.net`.
 * Designed for educational or ethical usage only — respect the site’s terms of service.
-* You should validate each proxy manually before using it in production.
+* You should validate each proxy before using it in production.
 
 ---
 
@@ -70,4 +92,4 @@ The harvested proxies will be saved to a `.txt` file, with one proxy per line in
 
 ---
 
-Happy harvesting!
+# Happy harvesting!
