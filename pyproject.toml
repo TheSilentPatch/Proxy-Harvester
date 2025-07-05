@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proxy-harvester"
+version = "1.0.0"
+description = "Scrape free proxies from public sources with robust CLI functionality."
+authors = [
+    { name = "TheSilentPatch", email = "tahsin-kabir2000@outlook.com" }
+]
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "colorama",
+]
+
+[project.scripts]
+proxy-harvester = "proxy_harvester:main"
