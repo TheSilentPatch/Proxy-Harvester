@@ -2,11 +2,15 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 jobs:
-  release:
+  semantic-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,17 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install build python-semantic-release
 
-      - name: Build source and wheel distributions
-        run: python -m build
-
-      - name: Run semantic release (generate release notes and tag)
-        run: python -m semantic_release version && python -m semantic_release changelog && python -m semantic_release publish
+      - name: Run semantic release (version, changelog, tag, publish)
+        run: python -m semantic_release publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+# Separate workflow (or job) for uploading release assets on tag push
+# Save as .github/workflows/upload-release-assets.yml
