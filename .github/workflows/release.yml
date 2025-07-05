@@ -2,16 +2,11 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [closed]
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 jobs:
   release:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
