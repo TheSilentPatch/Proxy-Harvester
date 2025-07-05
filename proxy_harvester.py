@@ -20,7 +20,7 @@ from colorama import Fore, Style, init
 # Initialize colorama
 init(autoreset=True)
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 BANNER = f"""
 {Fore.CYAN}{Style.BRIGHT}
  ____                           _   _                           _            
