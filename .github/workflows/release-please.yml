@@ -18,7 +18,7 @@ jobs:
       - name: Checkout code with PAT
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -45,13 +45,13 @@ jobs:
       - name: Checkout code with PAT
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           release-type: python
 
       - name: Download build artifacts
@@ -64,7 +64,7 @@ jobs:
       - name: Attach artifacts to GitHub Release
         if: ${{ steps.release.outputs.release_created == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ steps.release.outputs.tag_name }}" artifact/*
 
