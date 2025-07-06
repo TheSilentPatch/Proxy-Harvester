@@ -1,0 +1,50 @@
+# .github/workflows/release-please.yml
+name: Release & Build
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - run: |
+          pip install --upgrade build
+          python -m build --outdir dist/
+      - uses: actions/upload-artifact@v3
+        with:
+          name: dist-artifacts
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: python
+
+      - uses: actions/download-artifact@v3
+        if: needs.build.result == 'success'
+        with:
+          name: dist-artifacts
+          path: dist-from-build/
+
+      - name: Upload artifacts
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag_name }}" dist-from-build/*
