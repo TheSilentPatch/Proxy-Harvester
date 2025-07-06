@@ -1,5 +1,5 @@
 # .github/workflows/release-please.yml
-name: Release & Build
+name: Release & Artifacts with PAT
 
 on:
   push:
@@ -7,44 +7,67 @@ on:
       - main
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write        # For tagging, changelog, and release creation
+  pull-requests: write   # To open/update release PRs
 
 jobs:
   build:
+    name: Build distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - name: Checkout code with PAT
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-      - run: |
-          pip install --upgrade build
-          python -m build --outdir dist/
-      - uses: actions/upload-artifact@v4
+
+      - name: Install build tool
+        run: pip install --upgrade build
+
+      - name: Build artifacts
+        run: python -m build --outdir dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: dist-artifacts
           path: dist/*
 
   release:
+    name: Generate Release PR & Publish
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - id: release
+      - name: Checkout code with PAT
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+
+      - name: Run release-please
+        id: release
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_PAT }}
           release-type: python
 
-      - uses: actions/download-artifact@v4
+      - name: Download build artifacts
         if: needs.build.result == 'success'
+        uses: actions/download-artifact@v4
         with:
           name: dist-artifacts
-          path: dist-from-build/
+          path: artifact/
 
-      - name: Upload artifacts
+      - name: Attach artifacts to GitHub Release
         if: ${{ steps.release.outputs.release_created == 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ steps.release.outputs.tag_name }}" dist-from-build/*
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_PAT }}
+        run: |
+          gh release upload "${{ steps.release.outputs.tag_name }}" artifact/*
+
+      - name: Trigger downstream workflows
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        run: echo "Release ${{ steps.release.outputs.tag_name }} created."
