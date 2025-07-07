@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
-
+from importlib.metadata import version
 import requests
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
@@ -20,7 +20,7 @@ from colorama import Fore, Style, init
 # Initialize colorama
 init(autoreset=True)
 
-__version__ = "2.0.0"
+ver = version("proxy-harvester")
 BANNER = f"""
 {Fore.CYAN}{Style.BRIGHT}
  ____                           _   _                           _            
@@ -30,7 +30,7 @@ BANNER = f"""
 |_|   |_|  \___/_/\_\\__, |    |_| |_|\__,_|_|    \_/ \___||___/\__\___|_|   
                      |___/                                                   
 
-Proxy Harvester v{__version__}
+Proxy Harvester v{ver}
 by github.com/TheSilentPatch
 {Style.RESET_ALL}"""
 
@@ -240,7 +240,7 @@ def main() -> None:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {__version__}"
+        version=f"%(prog)s {ver}"
     )
     args = parser.parse_args()
     
