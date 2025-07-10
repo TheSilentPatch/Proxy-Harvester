@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # proxy_harvester.py
 """
-Proxy Harvester - Scrape free proxies from public sources with robust CLI functionality.
+Proxy Harvester - Scrape free proxies from multiple public sources with robust CLI functionality.
 """
 
 import argparse
 import logging
 import sys
-import re
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 from importlib.metadata import version
@@ -34,191 +32,131 @@ Proxy Harvester v{ver}
 by github.com/TheSilentPatch
 {Style.RESET_ALL}"""
 
-SOURCE_URL = "https://free-proxy-list.net/"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
 }
-IP_PORT_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}$")
+# List of proxy source URLs to scrape
+SOURCES = [
+    "https://free-proxy-list.net/",
+    "https://www.sslproxies.org/",
+    "https://www.us-proxy.org/"
+]
 
 def setup_logger(verbose: bool = False) -> logging.Logger:
-    """Configure and return logger instance"""
     logger = logging.getLogger("proxy_harvester")
     logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-    
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     return logger
 
 def validate_output_path(path: str, logger: logging.Logger) -> Path:
-    """
-    Validate and normalize output path with enhanced features:
-    - Handles directory paths (appends default filename)
-    - Creates parent directories if needed
-    - Checks write permissions
-    - Resolves absolute paths
-    """
     try:
         path_obj = Path(path).expanduser().resolve()
-        
-        # If path is a directory, append default filename
+        # If directory, append default filename
         if path_obj.is_dir() or path.endswith(os.sep):
-            logger.info(f"Output is directory, using default filename")
+            logger.info("Output is a directory; using default filename proxies.txt")
             path_obj = path_obj / "proxies.txt"
-        
-        # Create parent directories if needed
+        # Create parent directories if missing
         if not path_obj.parent.exists():
-            logger.info(f"Creating parent directories: {path_obj.parent}")
+            logger.info(f"Creating directories: {path_obj.parent}")
             path_obj.parent.mkdir(parents=True, exist_ok=True)
-            
-        # Check write access
-        if path_obj.exists():
-            logger.info(f"Output file exists, will overwrite: {path_obj}")
-        else:
-            logger.info(f"Output file will be created: {path_obj}")
-            
-        # Test write access
+        # Ensure file exists for later reading/updating
         path_obj.touch(exist_ok=True)
         return path_obj
-        
     except (PermissionError, OSError) as e:
         logger.error(f"Filesystem error: {e}")
         print(f"{Fore.RED}✗ Output path error: {e}{Style.RESET_ALL}")
         sys.exit(3)
 
-def fetch_html_content(url: str, logger: logging.Logger) -> str:
-    """Fetch HTML content from target URL with error handling"""
+def fetch_html_content(url: str, logger: logging.Logger) -> Optional[str]:
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
         response.raise_for_status()
-        logger.info(f"Successfully fetched content from {url}")
+        logger.info(f"Fetched content from {url}")
         return response.text
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network request failed: {e}")
-        print(f"{Fore.RED}✗ Network error: {e}{Style.RESET_ALL}")
-        sys.exit(1)
+    except requests.RequestException as e:
+        logger.warning(f"Failed to fetch {url}: {e}")
+        return None
 
 def parse_proxy_table(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
-    """Parse HTML and extract proxy data from table"""
+    proxies = []
     try:
         soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table", class_="table table-striped table-bordered")
-        
-        if not table:
-            raise ValueError("Proxy table not found in HTML")
-        
+        table = soup.find("table")
         headers = [th.text.strip().lower() for th in table.find("thead").find_all("th")]
-        proxies = []
-        
         for row in table.find("tbody").find_all("tr"):
             cols = [td.text.strip() for td in row.find_all("td")]
             if len(cols) != len(headers):
                 continue
             proxy_data = dict(zip(headers, cols))
             proxies.append(proxy_data)
-        
-        logger.info(f"Found {len(proxies)} raw proxies in table")
-        return proxies
-        
+        logger.info(f"Parsed {len(proxies)} proxies from HTML")
     except Exception as e:
-        logger.exception(f"Parsing failed: {e}")
-        print(f"{Fore.RED}✗ Parsing error: {e}{Style.RESET_ALL}")
-        sys.exit(2)
+        logger.warning(f"Parsing failed: {e}")
+    return proxies
 
 def validate_proxy(proxy: Dict[str, str]) -> Optional[str]:
-    """Validate proxy entry and return formatted ip:port if valid"""
     try:
-        ip = proxy["ip address"]
-        port = proxy["port"]
-        
-        if not ip or not port:
+        ip = proxy.get("ip address") or proxy.get("ip")
+        port = proxy.get("port")
+        if not ip or not port or not port.isdigit():
             return None
-        
-        # Validate port range
-        if not port.isdigit() or not (1 <= int(port) <= 65535):
-            return None
-        
         # Basic IP validation
-        if not all(part.isdigit() and 0 <= int(part) <= 255 for part in ip.split(".")):
+        if not all(0 <= int(part) <= 255 for part in ip.split(".")):
             return None
-            
         return f"{ip}:{port}"
-    except KeyError:
+    except Exception:
         return None
 
-def filter_proxies(
-    proxies: List[Dict[str, str]], 
-    proxy_type: str,
-    logger: logging.Logger
-) -> List[str]:
-    """Filter proxies based on type and validation criteria"""
-    valid_proxies = []
-    for proxy in proxies:
-        try:
-            # Skip if missing required fields
-            if "https" not in proxy:
-                continue
-                
-            # Type filtering
-            if proxy_type == "https" and proxy["https"] != "yes":
-                continue
-            if proxy_type == "http" and proxy["https"] != "no":
-                continue
-            
-            formatted = validate_proxy(proxy)
-            if formatted:
-                valid_proxies.append(formatted)
-        except KeyError as e:
-            logger.warning(f"Missing key in proxy data: {e}")
-    
-    return valid_proxies
+def filter_proxies(proxies: List[Dict[str, str]], proxy_type: str, logger: logging.Logger) -> List[str]:
+    valid = []
+    for p in proxies:
+        https_flag = p.get("https")
+        if proxy_type == "https" and https_flag != "yes":
+            continue
+        if proxy_type == "http" and https_flag != "no":
+            continue
+        formatted = validate_proxy(p)
+        if formatted:
+            valid.append(formatted)
+    return valid
 
 def save_proxies(proxies: List[str], path: Path, logger: logging.Logger) -> None:
-    """Save proxies to output file with validation"""
     try:
-        # Validate we have proxies to save
-        if not proxies:
-            logger.warning("No valid proxies to save")
-            print(f"{Fore.YELLOW}⚠ No valid proxies found to save{Style.RESET_ALL}")
-            
-        # Write to file
+        existing = set()
+        # Read existing entries
+        with path.open("r", encoding="utf-8") as f:
+            existing = set(line.strip() for line in f if line.strip())
+        new_set = set(proxies)
+        combined = sorted(existing | new_set)
         with path.open("w", encoding="utf-8") as f:
-            f.write("\n".join(proxies))
-        logger.info(f"Saved {len(proxies)} proxies to {path}")
-        print(f"{Fore.GREEN}✓ Saved {len(proxies)} proxies to {path}{Style.RESET_ALL}")
-        
-    except (IOError, PermissionError) as e:
+            f.write("\n".join(combined))
+        added = len(new_set - existing)
+        logger.info(f"Updated {path}: +{added} new, total {len(combined)}")
+        print(f"{Fore.GREEN}✓ Saved {added} new proxies to {path}{Style.RESET_ALL}")
+    except Exception as e:
         logger.error(f"File write error: {e}")
         print(f"{Fore.RED}✗ Failed to write output: {e}{Style.RESET_ALL}")
         sys.exit(4)
 
-def print_summary(
-    total_scraped: int,
-    valid_count: int,
-    proxy_type: str,
-    output_path: Path,
-    logger: logging.Logger
-) -> None:
-    """Print colored summary to console"""
-    logger.info(f"Scraping completed. Total: {total_scraped}, Valid: {valid_count}")
-    
+def print_summary(total: int, valid_count: int, proxy_type: str, output_path: Path, logger: logging.Logger) -> None:
+    logger.info(f"Scraping complete — total scraped: {total}, valid: {valid_count}")
     print(f"\n{Fore.GREEN}✓ Harvest complete!{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}• Scraped proxies:{Fore.CYAN} {total_scraped}")
+    print(f"{Fore.YELLOW}• Scraped proxies:{Fore.CYAN} {total}")
     print(f"{Fore.YELLOW}• Valid proxies:{Fore.CYAN} {valid_count}")
-    print(f"{Fore.YELLOW}• Proxy type:{Fore.CYAN} {proxy_type.upper()}")
-    print(f"{Fore.YELLOW}• Output file:{Fore.CYAN} {output_path}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}• Type:{Fore.CYAN} {proxy_type.upper()}")
+    print(f"{Fore.YELLOW}• Output:{Fore.CYAN} {output_path}{Style.RESET_ALL}")
 
 def main() -> None:
-    """Main CLI entry point"""
     print(BANNER)
-    
     parser = argparse.ArgumentParser(
-        description="Harvest free proxies from public sources",
+        description="Harvest free proxies from multiple public sources",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
@@ -230,7 +168,7 @@ def main() -> None:
     parser.add_argument(
         "-o", "--output",
         default="proxies.txt",
-        help="Output file or directory path (default: proxies.txt)"
+        help="Output file or directory path"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -243,27 +181,29 @@ def main() -> None:
         version=f"%(prog)s {ver}"
     )
     args = parser.parse_args()
-    
+
     logger = setup_logger(args.verbose)
     logger.info(f"Starting harvest (type={args.type}, output={args.output})")
-    
-    # Validate and normalize output path
+
     output_path = validate_output_path(args.output, logger)
-    
-    # Scrape and process proxies
-    html = fetch_html_content(SOURCE_URL, logger)
-    raw_proxies = parse_proxy_table(html, logger)
-    valid_proxies = filter_proxies(raw_proxies, args.type, logger)
-    
-    # Save and report results
-    save_proxies(valid_proxies, output_path, logger)
-    print_summary(
-        total_scraped=len(raw_proxies),
-        valid_count=len(valid_proxies),
-        proxy_type=args.type,
-        output_path=output_path,
-        logger=logger
-    )
+
+    all_raw = []
+    total_scraped = 0
+
+    for url in SOURCES:
+        html = fetch_html_content(url, logger)
+        if html:
+            raw = parse_proxy_table(html, logger)
+            all_raw.extend(raw)
+            total_scraped += len(raw)
+
+    if args.type == "all":
+        valid_list = [v for p in all_raw if (v := validate_proxy(p))]
+    else:
+        valid_list = filter_proxies(all_raw, args.type, logger)
+
+    save_proxies(valid_list, output_path, logger)
+    print_summary(total_scraped, len(valid_list), args.type, output_path, logger)
 
 if __name__ == "__main__":
     main()
