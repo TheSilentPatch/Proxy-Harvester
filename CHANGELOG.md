@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/TheSilentPatch/Proxy-Harvester/compare/v2.0.2...v2.1.0) (2025-07-10)
+
+
+### Features
+
+* Add multiple sites to scrape proxies from. ([525d60d](https://github.com/TheSilentPatch/Proxy-Harvester/commit/525d60d9e451261774758a247b39b44042aa1f47))
+
 ## [2.0.2](https://github.com/TheSilentPatch/Proxy-Harvester/compare/v2.0.1...v2.0.2) (2025-07-07)
 
 
