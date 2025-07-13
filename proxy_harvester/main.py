@@ -35,11 +35,113 @@ by github.com/TheSilentPatch
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
 }
+
+# Specific parsers for different sites
+def parse_free_proxy_list(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parser for free-proxy-list.net format"""
+    return parse_generic_proxy_table(html, logger)
+
+def parse_sslproxies(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parser for sslproxies.org format"""
+    return parse_generic_proxy_table(html, logger)
+
+def parse_us_proxy(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parser for us-proxy.org format"""
+    return parse_generic_proxy_table(html, logger)
+
+def parse_proxy_list_download(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parser for proxy-list.download format"""
+    proxies = []
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        table = soup.find("table", {"id": "tblproxy"})
+        if not table:
+            return []
+            
+        headers = [th.text.strip().lower() for th in table.find("thead").find_all("th")]
+        for row in table.find("tbody").find_all("tr"):
+            cols = [td.text.strip() for td in row.find_all("td")]
+            if len(cols) == len(headers):
+                proxy_data = dict(zip(headers, cols))
+                proxies.append(proxy_data)
+    except Exception as e:
+        logger.warning(f"Failed to parse proxy-list.download format: {e}")
+    return proxies
+
+def parse_raw_proxy_list(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Parser for raw text proxy lists"""
+    proxies = []
+    for line in html.splitlines():
+        line = line.strip()
+        if line and ":" in line:
+            ip, port = line.split(":", 1)
+            proxies.append({"ip": ip, "port": port})
+    return proxies
+
+def parse_generic_proxy_table(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
+    """Generic parser for HTML tables"""
+    proxies = []
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        table = soup.find("table")
+        if not table:
+            return []
+            
+        headers = []
+        thead = table.find("thead")
+        if thead:
+            headers = [th.text.strip().lower() for th in thead.find_all("th")]
+        
+        # If no headers in thead, try to find them in the first row
+        if not headers:
+            first_row = table.find("tr")
+            if first_row:
+                headers = [td.text.strip().lower() for td in first_row.find_all("td")]
+                rows = table.find_all("tr")[1:]  # Skip header row
+            else:
+                rows = table.find_all("tr")
+        else:
+            rows = table.find_all("tr")[1:] if thead else table.find_all("tr")
+        
+        for row in rows:
+            cols = [td.text.strip() for td in row.find_all("td")]
+            if len(cols) == len(headers):
+                proxy_data = dict(zip(headers, cols))
+                proxies.append(proxy_data)
+            elif cols:  # Handle rows with different column counts
+                # Try to extract IP and port from first two columns
+                if len(cols) >= 2:
+                    proxies.append({"ip": cols[0], "port": cols[1]})
+                
+        logger.info(f"Parsed {len(proxies)} proxies from HTML")
+    except Exception as e:
+        logger.warning(f"Generic parsing failed: {e}")
+    return proxies
+
+# Parser registry for different proxy source formats
+PARSERS = {
+    "free-proxy-list.net": parse_free_proxy_list,
+    "sslproxies.org": parse_sslproxies,
+    "us-proxy.org": parse_us_proxy,
+    "proxy-list.download": parse_proxy_list_download,
+    "raw.githubusercontent.com": parse_raw_proxy_list
+}
+
+def get_parser_for_url(url: str):
+    """Get the appropriate parser for a given URL"""
+    for domain, parser in PARSERS.items():
+        if domain in url:
+            return parser
+    return parse_generic_proxy_table  # Fallback parser
+
 # List of proxy source URLs to scrape
 SOURCES = [
     "https://free-proxy-list.net/",
     "https://www.sslproxies.org/",
-    "https://www.us-proxy.org/"
+    "https://www.us-proxy.org/",
+    "https://www.proxy-list.download/http",
+    "https://www.proxy-list.download/https",
+    "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
 ]
 
 def setup_logger(verbose: bool = False) -> logging.Logger:
@@ -71,7 +173,7 @@ def validate_output_path(path: str, logger: logging.Logger) -> Path:
         return path_obj
     except (PermissionError, OSError) as e:
         logger.error(f"Filesystem error: {e}")
-        print(f"{Fore.RED}✗ Output path error: {e}{Style.RESET_ALL}")
+        print(f"{Fore.RED}[ERROR] Output path error: {e}{Style.RESET_ALL}")
         sys.exit(3)
 
 def fetch_html_content(url: str, logger: logging.Logger) -> Optional[str]:
@@ -83,23 +185,6 @@ def fetch_html_content(url: str, logger: logging.Logger) -> Optional[str]:
     except requests.RequestException as e:
         logger.warning(f"Failed to fetch {url}: {e}")
         return None
-
-def parse_proxy_table(html: str, logger: logging.Logger) -> List[Dict[str, str]]:
-    proxies = []
-    try:
-        soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table")
-        headers = [th.text.strip().lower() for th in table.find("thead").find_all("th")]
-        for row in table.find("tbody").find_all("tr"):
-            cols = [td.text.strip() for td in row.find_all("td")]
-            if len(cols) != len(headers):
-                continue
-            proxy_data = dict(zip(headers, cols))
-            proxies.append(proxy_data)
-        logger.info(f"Parsed {len(proxies)} proxies from HTML")
-    except Exception as e:
-        logger.warning(f"Parsing failed: {e}")
-    return proxies
 
 def validate_proxy(proxy: Dict[str, str]) -> Optional[str]:
     try:
@@ -139,15 +224,15 @@ def save_proxies(proxies: List[str], path: Path, logger: logging.Logger) -> None
             f.write("\n".join(combined))
         added = len(new_set - existing)
         logger.info(f"Updated {path}: +{added} new, total {len(combined)}")
-        print(f"{Fore.GREEN}✓ Saved {added} new proxies to {path}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[OK] Saved {added} new proxies to {path}{Style.RESET_ALL}")
     except Exception as e:
         logger.error(f"File write error: {e}")
-        print(f"{Fore.RED}✗ Failed to write output: {e}{Style.RESET_ALL}")
+        print(f"{Fore.RED}[ERROR] Failed to write output: {e}{Style.RESET_ALL}")
         sys.exit(4)
 
 def print_summary(total: int, valid_count: int, proxy_type: str, output_path: Path, logger: logging.Logger) -> None:
     logger.info(f"Scraping complete — total scraped: {total}, valid: {valid_count}")
-    print(f"\n{Fore.GREEN}✓ Harvest complete!{Style.RESET_ALL}")
+    print(f"\n{Fore.GREEN}[OK] Harvest complete!{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}• Scraped proxies:{Fore.CYAN} {total}")
     print(f"{Fore.YELLOW}• Valid proxies:{Fore.CYAN} {valid_count}")
     print(f"{Fore.YELLOW}• Type:{Fore.CYAN} {proxy_type.upper()}")
@@ -193,7 +278,8 @@ def main() -> None:
     for url in SOURCES:
         html = fetch_html_content(url, logger)
         if html:
-            raw = parse_proxy_table(html, logger)
+            parser = get_parser_for_url(url)
+            raw = parser(html, logger)
             all_raw.extend(raw)
             total_scraped += len(raw)
 
