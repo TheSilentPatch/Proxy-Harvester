@@ -18,4 +18,4 @@ dependencies = [
 ]
 
 [project.scripts]
-proxy-harvester = "proxy_harvester:main"
+proxy-harvester = "proxy-harvester:main"
