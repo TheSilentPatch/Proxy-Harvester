@@ -1,32 +1,25 @@
 # Proxy Harvester
 
-A robust Python CLI tool to scrape free proxies from [free-proxy-list.net](https://free-proxy-list.net/) and save them in `ip:port` format. Supports flexible output paths, colored logging, and protocol filtering.
+Easily scrape free proxies from public sources and save them in `ip:port` format. This modern Python CLI tool is fast, flexible, and easy to use.
 
-## Installation
+---
 
-You can install the proxy harvester using pip from the github repo:
+## 🚀 Quick Start
 
+Install directly from GitHub:
 ```bash
 pip install git+https://github.com/TheSilentPatch/Proxy-Harvester.git
 ```
-Then use:
-```bash
-# for help
-proxy-harvester --help
-```
 
-If you want to install a specific release:
+Then run:
 ```bash
-pip install git+https://github.com/TheSilentPatch/Proxy-Harvester.git@<release_tag>
-# browse releases in https://github.com/TheSilentPatch/Proxy-Harvester/releases
+proxy-harvester --help
 ```
 
 ---
 
-## Features
-
-- Docstrings in [proxy-harvester.py](https://github.com/TheSilentPatch/Proxy-Harvester/blob/main/proxy_harvester.py) makes it super understandable
-- Scrapes proxies from a public source with a single command
+## 📦 Features
+- Scrapes proxies from multiple public sources
 - Supports HTTP, HTTPS, or all proxies
 - Output to a file or directory (auto-creates folders)
 - Colored, informative CLI output
@@ -35,49 +28,95 @@ pip install git+https://github.com/TheSilentPatch/Proxy-Harvester.git@<release_t
 
 ---
 
-## Usage
+## 🛠️ Installation
 
+**Latest version:**
 ```bash
-# Basic usage (HTTPS proxies)
-python proxy_harvester.py
-
-# HTTP proxies with custom output
-python proxy_harvester.py --type http -o http_proxies.txt
-
-# All proxies with verbose output
-python proxy_harvester.py -t all -v
-
-# Output to a directory (auto-creates if needed)
-python proxy_harvester.py -o ./output/
+pip install git+https://github.com/TheSilentPatch/Proxy-Harvester.git
 ```
 
-### Options
+**Specific release:**
+```bash
+pip install git+https://github.com/TheSilentPatch/Proxy-Harvester.git@<release_tag>
+# See releases: https://github.com/TheSilentPatch/Proxy-Harvester/releases
+```
 
-* `--type` or `-t` (default `https`)
+**From source:**
+```bash
+git clone https://github.com/TheSilentPatch/Proxy-Harvester.git
+cd Proxy-Harvester
+pip install .
+```
 
-  * Filter proxies by protocol: `http`, `https`, or `all`
-* `--output` or `-o`
+---
 
-  * Set output file or directory (default `proxies.txt`)
-* `--verbose` or `-v`
+## 📝 Usage Examples
 
-  * Enable verbose debug output
-* `--version`
+### Basic CLI usage
+```bash
+proxy-harvester
+```
 
-  * Show version information
+### Filter by protocol
+```bash
+proxy-harvester --type http
+proxy-harvester --type all
+```
 
-## Output
+### Custom output file
+```bash
+proxy-harvester -o myproxies.txt
+```
 
-The harvested proxies will be saved to a `.txt` file, with one proxy per line in this format:
+### Verbose/debug output
+```bash
+proxy-harvester -v
+```
 
+### See all options
+```bash
+proxy-harvester --help
+```
+
+---
+
+## ⚙️ Command-line Options
+| Option            | Description                                 | Default         |
+|-------------------|---------------------------------------------|-----------------|
+| `--type`, `-t`    | Proxy type: `http`, `https`, or `all`       | `https`         |
+| `--output`, `-o`  | Output file or directory                    | `proxies.txt`   |
+| `--verbose`, `-v` | Enable verbose debug output                 | Off             |
+| `--version`       | Show version information                    |                 |
+
+---
+
+## 📂 Output Format
+Each harvested proxy is saved on a new line in the format:
+```
+IP:PORT
+```
+Example:
 ```
 123.45.67.89:8080
 12.34.56.78:3128
 ```
 
-## Release Automation
+---
 
-- Releases are triggered by pushing a tag like `v2.0.0` to GitHub.
+## 🤝 Contributing
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## 🔗 Links
+- [GitHub Repository](https://github.com/TheSilentPatch/Proxy-Harvester)
+- [Report Issues](https://github.com/TheSilentPatch/Proxy-Harvester/issues)
+
 - GitHub Actions will build the package and upload release assets automatically.
 - Release notes are auto-generated.
 

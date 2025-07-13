@@ -16,6 +16,20 @@ dependencies = [
     "beautifulsoup4",
     "colorama",
 ]
+urls = {
+    "Homepage" = "https://github.com/TheSilentPatch/Proxy-Harvester",
+    "Repository" = "https://github.com/TheSilentPatch/Proxy-Harvester",
+    "Issues" = "https://github.com/TheSilentPatch/Proxy-Harvester/issues"
+}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Internet",
+    "Topic :: Utilities"
+]
+
 
 [project.scripts]
 proxy-harvester = "proxy_harvester.main:main"
